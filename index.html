@@ -1,0 +1,180 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lexmed.Intelectta.com - Malha de Polígonos Reativa</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    .overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: #fff;
+      text-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+    }
+    .overlay h1 {
+      font-size: 2em;
+      margin: 0;
+    }
+    .overlay p {
+      font-size: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <h1>Lexmed.Intelectta.com</h1>
+    <p>Mova o mouse para interagir com a malha de polígonos</p>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    // Configurable variables
+    const GRID_SIZE = 50; // Size of each grid cell
+    const POINT_RADIUS = 100; // Radius of mouse influence
+    const MAX_DISPLACEMENT = 20; // Maximum displacement of points
+    const DAMPING = 0.1; // Damping factor for spring effect
+    const TENSION = 0.02; // Spring tension
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height, points;
+
+    function init() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      points = [];
+      
+      // Create grid of points
+      for (let x = 0; x <= width; x += GRID_SIZE) {
+        for (let y = 0; y <= height; y += GRID_SIZE) {
+          points.push({
+            x: x,
+            y: y,
+            originalX: x,
+            originalY: y,
+            vx: 0,
+            vy: 0
+          });
+        }
+      }
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+
+      // Update points based on mouse position
+      const mouse = { x: mouseX, y: mouseY };
+      points.forEach(point => {
+        const dx = mouse.x - point.x;
+        const dy = mouse.y - point.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < POINT_RADIUS) {
+          const force = (1 - distance / POINT_RADIUS) * MAX_DISPLACEMENT;
+          const angle = Math.atan2(dy, dx);
+          point.vx -= force * Math.cos(angle);
+          point.vy -= force * Math.sin(angle);
+        }
+
+        // Spring back to original position
+        point.vx += (point.originalX - point.x) * TENSION;
+        point.vy += (point.originalY - point.y) * TENSION;
+        point.vx *= (1 - DAMPING);
+        point.vy *= (1 - DAMPING);
+        point.x += point.vx;
+        point.y += point.vy;
+      });
+
+      // Draw lines between points to form polygons
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const neighbors = [
+          points[i + 1],
+          points[i + Math.ceil(width / GRID_SIZE) + 1],
+          points[i + Math.ceil(width / GRID_SIZE)],
+        ].filter(p => p);
+        
+        neighbors.forEach(p2 => {
+          if (p2) {
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+          }
+        });
+      }
+      ctx.stroke();
+
+      requestAnimationFrame(animate);
+    }
+
+    let mouseX = 0, mouseY = 0;
+    canvas.addEventListener('mousemove', e => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+
+    window.addEventListener('resize', () => {
+      init();
+    });
+
+    init();
+    animate();
+  </script>
+</body>
+</html>
