@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "name": "Consulta Psiquiatria"
+  },
+  {
+    "id": 2,
+    "name": "Terapia Individual"
+  },
+  {
+    "id": 3,
+    "name": "Avaliação Neuropsicológica"
+  },
+  {
+    "id": 4,
+    "name": "Sessão de Retorno"
+  },
+  {
+    "id": 5,
+    "name": "Atendimento Familiar"
+  }
+]

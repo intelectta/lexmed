@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Agendamento de Consultas</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #f5f8fb;
+      color: #333;
+      height: 100%;
+    }
+
+    .calendario {
+      padding: 20px;
+      border-bottom: 1px solid #d0d8e5;
+      width: 100%;
+      max-width: 420px;
+    }
+    .calendario h2 {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #1e3d74;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+
+    .dia {
+      padding: 10px;
+      border: 1px solid #c0cbe0;
+      border-radius: 6px;
+      text-align: center;
+      cursor: pointer;
+      color: #a3a9b5;
+      transition: all 0.2s ease-in-out;
+      background-color: #ffffff;
+    }
+
+    .dia.com-evento {
+      background-color: #d9e6fa;
+      border-color: #7ea7e6;
+      color: #214b91;
+      font-weight: bold;
+    }
+
+    .dia:hover {
+      background: #e5effc;
+    }
+
+    .dia.selecionado {
+      background: #7ea7e6;
+      color: #fff;
+      border-color: #214b91;
+    }
+
+    .horarios {
+      flex: 1;
+      padding: 20px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .horarios h2 {
+      color: #1e3d74;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      padding: 10px;
+      margin: 6px 0;
+      border: 1px solid #c0cbe0;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      background-color: #f0f5fc;
+      color: #1e3d74;
+    }
+
+    li:hover {
+      background: #d9e6fa;
+    }
+
+    li.selecionado {
+      background: #7ea7e6;
+      color: white;
+      border-color: #214b91;
+    }
+
+    .legenda {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      width: 100%;
+      max-width: 400px;
+      margin-top: 12px;
+      padding: 8px 0;
+      border-top: 1px solid #d0d8e5;
+      font-size: 0.95rem;
+      color: #1e3d74;
+    }
+    .leg-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .leg-bolinha {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid #7ea7e6;
+    }
+    .leg-azul { background-color: #7ea7e6; }
+    .leg-branca { background-color: #ffffff; }
+
+    .fechar {
+      margin: 20px auto;
+      background: #7ea7e6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .fechar:hover {
+      background: #214b91;
+    }
+  </style>
+</head>
+<body>
+  <div class="calendario">
+    <h2>Dias com Horários Disponíveis</h2>
+    <div id="grid-calendario" class="grid"></div>
+
+    <!-- 🔵 Legenda -->
+    <div class="legenda">
+      <div class="leg-item">
+        <div class="leg-bolinha leg-azul"></div>
+        Dia com Consultas Disponíveis
+      </div>
+      <div class="leg-item">
+        <div class="leg-bolinha leg-branca"></div>
+        Dias sem Consultas Disponíveis
+      </div>
+    </div>
+  </div>
+
+  <div class="horarios">
+    <h2>Selecione Seu Horário</h2>
+    <ul id="lista-horarios">
+      <li>Carregando calendário...</li>
+    </ul>
+  </div>
+
+  <button class="fechar" onclick="window.close()">✖ Fechar Janela</button>
+
+  <script>
+    const API_KEY = "AIzaSyAxU7OWeNRf-sA42QnhA4a4mGYn-VGl7iQ";
+    const CALENDAR_ID = "pres.intelectta@gmail.com";
+    const BASE_URL = `https://www.googleapis.com/calendar/v3/calendars/${CALENDAR_ID}/events?key=${API_KEY}`;
+
+    const grid = document.getElementById("grid-calendario");
+    const lista = document.getElementById("lista-horarios");
+
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth();
+    const primeiroDia = new Date(ano, mes, 1).getDay();
+    const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+
+    for (let i = 0; i < primeiroDia; i++) grid.appendChild(document.createElement("div"));
+
+    async function carregarCalendario() {
+      const start = new Date(ano, mes, 1).toISOString();
+      const end = new Date(ano, mes + 1, 0, 23, 59, 59).toISOString();
+      const url = `${BASE_URL}&timeMin=${start}&timeMax=${end}&singleEvents=true&orderBy=startTime`;
+
+      try {
+        const resp = await fetch(url);
+        const dataEvents = await resp.json();
+
+        const eventosDisponiveis = (dataEvents.items || []).filter(ev =>
+          ev.summary && ev.summary.toLowerCase().includes("disponível")
+        );
+
+        const diasComEventos = new Set(
+          eventosDisponiveis.map(ev => new Date(ev.start.dateTime || ev.start.date).getDate())
+        );
+
+        for (let dia = 1; dia <= ultimoDia; dia++) {
+          const div = document.createElement("div");
+          div.textContent = dia;
+          div.classList.add("dia");
+
+          if (diasComEventos.has(dia)) {
+            div.classList.add("com-evento");
+            div.onclick = () => selecionarData(ano, mes, dia, div);
+          }
+
+          grid.appendChild(div);
+        }
+
+        lista.innerHTML = "<li>Selecione um dia com Horários Disponíveis</li>";
+
+      } catch (e) {
+        lista.innerHTML = `<li>Erro ao carregar calendário: ${e.message}</li>`;
+      }
+    }
+
+    async function selecionarData(ano, mes, dia, divEl) {
+      document.querySelectorAll(".dia").forEach(d => d.classList.remove("selecionado"));
+      divEl.classList.add("selecionado");
+
+      const data = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      lista.innerHTML = "<li>Carregando horários...</li>";
+
+      const start = `${data}T00:00:00Z`;
+      const end = `${data}T23:59:59Z`;
+      const url = `${BASE_URL}&timeMin=${start}&timeMax=${end}&singleEvents=true&orderBy=startTime`;
+
+      try {
+        const resp = await fetch(url);
+        const dataEvents = await resp.json();
+        const eventos = (dataEvents.items || []).filter(ev =>
+          ev.summary && ev.summary.toLowerCase().includes("disponível")
+        );
+
+        lista.innerHTML = "";
+        if (eventos.length > 0) {
+          const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          eventos.forEach(ev => {
+            const hora = ev.start.dateTime
+              ? new Date(ev.start.dateTime).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone
+                })
+              : "Dia inteiro";
+            const titulo = ev.summary || "(sem título)";
+            const li = document.createElement("li");
+            li.textContent = `${hora} - ${titulo}`;
+            li.onclick = () => {
+              document.querySelectorAll("#lista-horarios li").forEach(l => l.classList.remove("selecionado"));
+              li.classList.add("selecionado");
+              alert(`Horário selecionado: ${hora}\nEvento: ${titulo}`);
+            };
+            lista.appendChild(li);
+          });
+        } else {
+          lista.innerHTML = "<li>Sem Horários Disponíveis neste dia</li>";
+        }
+
+      } catch (e) {
+        lista.innerHTML = `<li>Erro ao carregar horários: ${e.message}</li>`;
+      }
+    }
+
+    carregarCalendario();
+
+    // Abre centralizado se não for popup
+    if (window.opener == null) {
+      const width = 700;
+      const height = 600;
+      const left = (screen.width / 2) - (width / 2);
+      const top = (screen.height / 2) - (height / 2);
+      const url = window.location.href;
+      window.open(url, "AgendaDisponiveis",
+        `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+      window.close();
+    }
+  </script>
+</body>
+</html>
